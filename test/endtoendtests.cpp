@@ -22,7 +22,7 @@ bool verifyScreenshot(Vm* vm, Host* host, std::string screenshotFilename) {
         error = lodepng::decode(image, width, height, png);
     } 
     if (error) {
-        CHECK_MESSAGE(error == 0, "Unable to decode screenshot png");
+        CHECK_MESSAGE(error == 0, "Unable to decode screenshot png %s", screenshotFilename.c_str());
         return false;
     }
 
@@ -71,9 +71,65 @@ bool verifyScreenshot(Vm* vm, Host* host, std::string screenshotFilename) {
 
 }
 
+/*
+#include <filesystem>
+namespace fs = std::filesystem;
+
+std::vector<std::string> get_cart_files_in_dir(std::string directory){
+    std::vector<std::string> files;
+    for (const auto & entry : fs::directory_iterator(directory)) {
+        std::string path = entry.path().string();
+        if (isCartFile(path)) {
+            files.push_back(path.substr(path.find_last_of("/\\") + 1));
+        }
+    }
+
+    return files;
+}
+*/
+
 TEST_CASE("Loading and running carts") {
     Host* host = new Host();
     Vm* vm = new Vm(host);
+
+    /*
+    SUBCASE("test carts") {
+        // char cwd[PATH_MAX];
+        // if (getcwd(cwd, sizeof(cwd)) != NULL) {
+        //     printf("Current working dir: %s\n", cwd);
+        // }
+        auto screenshots = get_cart_files_in_dir("carts/screenshots");
+
+        for (auto screenshot : screenshots) {
+            if (screenshot.length() < 8) {
+                continue;
+            }
+            auto last8Chars = screenshot.substr(screenshot.length() - 8);
+            if (last8Chars != "_f01.png") {
+                continue;
+            }
+            auto cartfile = screenshot.substr(0, screenshot.length() - 8) + ".p8";
+            vm->LoadCart(cartfile, false);
+            vm->vm_reset();
+
+            SUBCASE("No error reported"){
+                CHECK(vm->GetBiosError() == "");
+            }
+            if (getFileExtension(cartfile) == ".p8") {
+                SUBCASE(cartfile.c_str()){
+                    vm->UpdateAndDraw();
+
+                    std::stringstream ss;
+                    ss << "carts/screenshots/" << screenshot;
+
+                    CHECK(verifyScreenshot(vm, host, ss.str()));
+                }
+            }
+
+            vm->CloseCart();
+        }
+    }
+    */
 
     SUBCASE("Load simple cart"){
         vm->LoadCart("cartparsetest.p8", false);
@@ -395,7 +451,7 @@ TEST_CASE("Loading and running carts") {
                 "poke4", "memcpy", "memset", "max", "min", "mid", "flr", 
                 "ceil", "cos", "sin", "atan2", "rnd", "srand", "band",
                 "bor", "bxor", "bnot", "shl", "shr", "lshr", "rotl", "rotr",
-                "mapdraw", "extcmd"
+                "mapdraw", "extcmd", "next", "inext", "pairs", "ipairs"
             };
 
             string missing = "";
@@ -678,6 +734,100 @@ TEST_CASE("Loading and running carts") {
             vm->UpdateAndDraw();
 
             CHECK(verifyScreenshot(vm, host, "carts/screenshots/one_off_chars_f01.png"));
+        }
+
+        vm->CloseCart();
+    }
+    SUBCASE("p8scii control code memory access"){
+        vm->LoadCart("print_mem_poke.p8");
+
+        SUBCASE("No error reported"){
+            CHECK(vm->GetBiosError() == "");
+        }
+        SUBCASE("sceen matches screenshot"){
+            vm->UpdateAndDraw();
+
+            CHECK(verifyScreenshot(vm, host, "carts/screenshots/print_mem_poke_f01.png"));
+        }
+
+        vm->CloseCart();
+    }
+    SUBCASE("print scrolls screen"){
+        vm->LoadCart("print_scroll_test.p8");
+        
+        SUBCASE("sceen matches screenshot"){
+            vm->UpdateAndDraw();
+
+            CHECK(verifyScreenshot(vm, host, "carts/screenshots/print_scroll_test_f01.png"));
+        }
+
+        vm->CloseCart();
+    }
+    SUBCASE("custom font test"){
+        //font used from Pico World Race https://www.lexaloffle.com/bbs/?pid=106518
+        //https://creativecommons.org/licenses/by-nc-sa/4.0/
+        vm->LoadCart("ppwr-big-digit-test.p8");
+        
+        SUBCASE("sceen matches screenshot"){
+            vm->UpdateAndDraw();
+
+            CHECK(verifyScreenshot(vm, host, "carts/screenshots/ppwr-big-digit-test_f01.png"));
+        }
+
+        vm->CloseCart();
+    }
+    SUBCASE("split with no args test"){
+        vm->LoadCart("split_noargs_test.p8", false);
+
+        SUBCASE("No error reported"){
+            CHECK(vm->GetBiosError() == "");
+        }
+        SUBCASE("sceen matches screenshot"){
+            vm->UpdateAndDraw();
+
+            CHECK(verifyScreenshot(vm, host, "carts/screenshots/split_noargs_test_f01.png"));
+        }
+
+        vm->CloseCart();
+    }
+    SUBCASE("string bracket indexing and sub test"){
+        vm->LoadCart("str_index_sub_test.p8", false);
+
+        SUBCASE("No error reported"){
+            CHECK(vm->GetBiosError() == "");
+        }
+        SUBCASE("sceen matches screenshot"){
+            vm->UpdateAndDraw();
+
+            CHECK(verifyScreenshot(vm, host, "carts/screenshots/str_index_sub_test_f01.png"));
+        }
+
+        vm->CloseCart();
+    }
+    SUBCASE("count with val arg test"){
+        vm->LoadCart("count_val_test.p8", false);
+
+        SUBCASE("No error reported"){
+            CHECK(vm->GetBiosError() == "");
+        }
+        SUBCASE("sceen matches screenshot"){
+            vm->UpdateAndDraw();
+
+            CHECK(verifyScreenshot(vm, host, "carts/screenshots/count_val_test_f01.png"));
+        }
+
+        vm->CloseCart();
+    }
+    SUBCASE("bold text with wide char test"){
+        vm->LoadCart("boldtexttest.p8", false);
+
+        SUBCASE("No error reported"){
+            CHECK(vm->GetBiosError() == "");
+        }
+        SUBCASE("sceen matches screenshot"){
+            vm->UpdateAndDraw();
+
+            CHECK(verifyScreenshot(vm, host, "carts/screenshots/boldtexttest_f01.png"));
         }
 
         vm->CloseCart();

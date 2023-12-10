@@ -96,6 +96,20 @@ EXPORT void retro_init()
         printf("retro init called. no retro logger\n");
 	}
 
+    struct retro_input_descriptor input_desc[] = {
+      { 0, RETRO_DEVICE_JOYPAD, 0, RETRO_DEVICE_ID_JOYPAD_LEFT,  "D-Pad Left" },
+      { 0, RETRO_DEVICE_JOYPAD, 0, RETRO_DEVICE_ID_JOYPAD_UP,    "D-Pad Up" },
+      { 0, RETRO_DEVICE_JOYPAD, 0, RETRO_DEVICE_ID_JOYPAD_DOWN,  "D-Pad Down" },
+      { 0, RETRO_DEVICE_JOYPAD, 0, RETRO_DEVICE_ID_JOYPAD_RIGHT, "D-Pad Right" },
+      { 0, RETRO_DEVICE_JOYPAD, 0, RETRO_DEVICE_ID_JOYPAD_B,     "Button O" },
+      { 0, RETRO_DEVICE_JOYPAD, 0, RETRO_DEVICE_ID_JOYPAD_A,     "Button X" },
+      { 0, RETRO_DEVICE_JOYPAD, 0, RETRO_DEVICE_ID_JOYPAD_START, "Button Pause" },
+
+      { 0 },
+   };
+
+   enviro_cb(RETRO_ENVIRONMENT_SET_INPUT_DESCRIPTORS, input_desc);
+
     //called once. do setup (create host and vm?)
     _host = new Host();
 
@@ -147,10 +161,14 @@ EXPORT unsigned retro_api_version()
 EXPORT void retro_get_system_info(struct retro_system_info *info)
 {
     memset(info, 0, sizeof(*info));
-    info->library_name = "Polybius08-Xtreme";
-    info->library_version = "2K23"; //todo: get from build flags
+    info->library_name = "fake-08";
+    info->library_version = "0.0.2.20"; //todo: get from build flags
     info->valid_extensions = "p8|png";
-    info->need_fullpath = true; // we load our own carts for now
+    #ifdef _NEED_FULL_PATH_
+    info->need_fullpath = true;
+    #else
+    info->need_fullpath = false;
+    #endif
 }
 
 EXPORT void retro_get_system_av_info(struct retro_system_av_info *info)
@@ -161,7 +179,7 @@ EXPORT void retro_get_system_av_info(struct retro_system_av_info *info)
     info->geometry.max_width = PicoScreenWidth;
     info->geometry.max_height = PicoScreenHeight;
     info->geometry.aspect_ratio = 1.f;
-    info->timing.fps = 60.f; //todo: update this to 60, then handle 30 at callback level?
+    info->timing.fps = 60.f;
     info->timing.sample_rate = 22050.f;
 
     retro_pixel_format pf = RETRO_PIXEL_FORMAT_RGB565;
@@ -183,8 +201,8 @@ static std::array<int, 7> buttons
     RETRO_DEVICE_ID_JOYPAD_RIGHT,
     RETRO_DEVICE_ID_JOYPAD_UP,
     RETRO_DEVICE_ID_JOYPAD_DOWN,
-    RETRO_DEVICE_ID_JOYPAD_A,
     RETRO_DEVICE_ID_JOYPAD_B,
+    RETRO_DEVICE_ID_JOYPAD_A,
     RETRO_DEVICE_ID_JOYPAD_START,
 };
 
@@ -226,14 +244,57 @@ EXPORT void retro_run()
         mouseBtnState = 0;
 
         if (_memory->drawState.devkitMode) {
-            int16_t pressed = input_state_cb(0, RETRO_DEVICE_POINTER, 0, RETRO_DEVICE_ID_POINTER_PRESSED);
-            int16_t pointX = input_state_cb(0, RETRO_DEVICE_POINTER, 0, RETRO_DEVICE_ID_POINTER_X);
-            int16_t pointY = input_state_cb(0, RETRO_DEVICE_POINTER, 0, RETRO_DEVICE_ID_POINTER_Y);
+            bool havePointer = false;
+            bool haveAnalog = false;
+            bool haveMouse = false;
+            bool gotTouch = false;
             
-            if (pressed) {
-                picoMouseX = pointX * 64 / 32768 + 64;
-                picoMouseY = pointY * 64 / 32768 + 64;
-                mouseBtnState = 1;
+            uint64_t flags = 0;
+            enviro_cb(RETRO_ENVIRONMENT_GET_INPUT_DEVICE_CAPABILITIES, &flags);
+
+
+            haveMouse = flags & (1 << RETRO_DEVICE_MOUSE);
+            havePointer = flags & (1 << RETRO_DEVICE_POINTER);
+            haveAnalog = flags & (1 << RETRO_DEVICE_ANALOG);
+
+            if (haveMouse) {
+                int16_t pointX = input_state_cb(0, RETRO_DEVICE_MOUSE, 0, RETRO_DEVICE_ID_MOUSE_X);
+                int16_t pointY = input_state_cb(0, RETRO_DEVICE_MOUSE, 0, RETRO_DEVICE_ID_MOUSE_Y);
+                mouseBtnState = input_state_cb(0, RETRO_DEVICE_POINTER, 0, RETRO_DEVICE_ID_POINTER_PRESSED);
+
+                //this needs to be adjusted to screen scale I think?
+                picoMouseX += pointX;
+                picoMouseY += pointY;
+            }
+            else if (havePointer) {
+                int16_t pointX = input_state_cb(0, RETRO_DEVICE_POINTER, 0, RETRO_DEVICE_ID_POINTER_X);
+                int16_t pointY = input_state_cb(0, RETRO_DEVICE_POINTER, 0, RETRO_DEVICE_ID_POINTER_Y);
+                int16_t pressed = input_state_cb(0, RETRO_DEVICE_POINTER, 0, RETRO_DEVICE_ID_POINTER_PRESSED);
+                
+                if (pressed) {
+                    picoMouseX = pointX * 64 / 32768 + 64;
+                    picoMouseY = pointY * 64 / 32768 + 64;
+                    mouseBtnState = 1;
+                    gotTouch = true;
+                }
+            }
+
+            if (haveAnalog && !gotTouch) {
+                // Read the analog X/Y
+                int16_t analogX = input_state_cb(0, RETRO_DEVICE_ANALOG, RETRO_DEVICE_INDEX_ANALOG_LEFT, RETRO_DEVICE_ID_ANALOG_X);
+                int16_t analogY = input_state_cb(0, RETRO_DEVICE_ANALOG, RETRO_DEVICE_INDEX_ANALOG_LEFT, RETRO_DEVICE_ID_ANALOG_Y);
+                // Pre-calculate where the cursor will be
+                int16_t tempX = picoMouseX + (((PicoScreenWidth / 32767.0f ) * analogX)/32);
+                int16_t tempY = picoMouseY + (((PicoScreenHeight / 32767.0f ) * analogY)/32);
+                // Make sure the cursor stays within the screen
+                if ( ((tempX - 0) | (PicoScreenWidth - tempX)) >= 0) {
+                    picoMouseX = tempX;
+                }
+                if ( ((tempY - 0) | (PicoScreenHeight - tempY)) >= 0) {
+                    picoMouseY = tempY;
+                }
+                // Grab the state of the X button
+                mouseBtnState = input_state_cb(0, RETRO_DEVICE_JOYPAD, 0, RETRO_DEVICE_ID_JOYPAD_X);
             }
         }
         
@@ -328,8 +389,18 @@ char luaStateBuffer[LUASTATEBUFFSIZE];
 
 EXPORT size_t retro_serialize_size()
 {
-    return sizeof(PicoRam) + sizeof(audioState_t) + LUASTATEBUFFSIZE;
+    return 
+    //header
+    4 + 
+    //size plus ram state
+    sizeof(size_t) + sizeof(PicoRam) + 
+    //size plus audio state
+    sizeof(size_t) + sizeof(audioState_t) + 
+    //size plus lua state
+    sizeof(size_t) + LUASTATEBUFFSIZE;
 }
+
+#define SAVE_STATE_HEADER_SIZE 4
 
 EXPORT bool retro_serialize(void *data, size_t size)
 {
@@ -351,13 +422,15 @@ EXPORT bool retro_serialize(void *data, size_t size)
     if (log_cb) {
         log_cb(RETRO_LOG_INFO, "setting up lua state buffer\n");
     }
+    char headerBuffer[SAVE_STATE_HEADER_SIZE] = {'f', '8', 0, 1};
+    memcpy((char*)data, &headerBuffer, SAVE_STATE_HEADER_SIZE);
     
     memset(luaStateBuffer, 0, LUASTATEBUFFSIZE);
 
     if (log_cb) {
         log_cb(RETRO_LOG_INFO, "serializing lua state\n");
     }
-    size_t offset = 0;
+    size_t offset = SAVE_STATE_HEADER_SIZE;
     size_t luaStateSize = _vm->serializeLuaState(luaStateBuffer);
 
     if (log_cb) {
@@ -377,6 +450,10 @@ EXPORT bool retro_serialize(void *data, size_t size)
         log_cb(RETRO_LOG_INFO, "copying pico 8 memory to buffer\n");
     }
 
+    size_t picoRamSize = sizeof(PicoRam);
+    memcpy(((char*)data + offset), &picoRamSize, sizeof(size_t));
+    offset += sizeof(size_t);
+
     memcpy(((char*)data + offset), _memory->data, sizeof(PicoRam));
     offset += sizeof(PicoRam);
 
@@ -384,8 +461,12 @@ EXPORT bool retro_serialize(void *data, size_t size)
         log_cb(RETRO_LOG_INFO, "copying audio state size to buffer\n");
     }
 
-    memcpy(((char*)data + offset), _audio->getAudioState(), sizeof(audioState_t));
-    offset += sizeof(audioState_t);
+    size_t musicChannelSize = sizeof(musicChannel);
+    memcpy(((char*)data + offset), &musicChannelSize, sizeof(size_t));
+    offset += sizeof(size_t);
+
+    memcpy(((char*)data + offset), &_audio->getAudioState()->_musicChannel, sizeof(musicChannel));
+    offset += sizeof(musicChannel);
 
     if (log_cb) {
         log_cb(RETRO_LOG_INFO, "returning true\n");
@@ -393,6 +474,59 @@ EXPORT bool retro_serialize(void *data, size_t size)
 
     return true;
 }
+
+
+bool deserialize_legacy(const void *data, size_t size) {
+    if (log_cb) {
+        log_cb(RETRO_LOG_INFO, "LEGACY lua deserialize LEGACY\n");
+    }
+
+    if (log_cb) {
+        log_cb(RETRO_LOG_INFO, "LEGACY setting up lua state buffer\n");
+    }
+    memset(luaStateBuffer, 0, LUASTATEBUFFSIZE);
+
+    if (log_cb) {
+        log_cb(RETRO_LOG_INFO, "LEGACY copying lua state from buffer to var\n");
+    }
+    size_t offset = 0;
+    size_t luaStateSize;
+    memcpy(&luaStateSize, ((char*)data + offset),  sizeof(size_t));
+    offset += sizeof(size_t);
+
+    if (log_cb) {
+        log_cb(RETRO_LOG_INFO, "LEGACY got lua state size %d\n", luaStateSize);
+    }
+
+    if (log_cb) {
+        log_cb(RETRO_LOG_INFO, "LEGACY copying lua state\n");
+    }
+
+    memcpy(luaStateBuffer, ((char*)data + offset), luaStateSize);
+    offset += luaStateSize;
+
+    if (log_cb) {
+        log_cb(RETRO_LOG_INFO, "LEGACY deserializing lua state\n");
+    }
+    _vm->deserializeLuaState(luaStateBuffer, luaStateSize);
+
+    if (log_cb) {
+        log_cb(RETRO_LOG_INFO, "LEGACY copying pico 8 memory\n");
+    }
+
+    memcpy(_memory->data, ((char*)data + offset), sizeof(PicoRam));
+    offset += sizeof(PicoRam);
+
+    if (log_cb) {
+        log_cb(RETRO_LOG_INFO, "LEGACY copying audio state\n");
+    }
+
+    memcpy(&_audio->getAudioState()->_musicChannel, ((char*)data + offset), sizeof(musicChannel));
+    offset += sizeof(audioState_t);
+    
+    return true;
+}
+
 
 EXPORT bool retro_unserialize(const void *data, size_t size)
 {
@@ -408,7 +542,19 @@ EXPORT bool retro_unserialize(const void *data, size_t size)
     if (log_cb) {
         log_cb(RETRO_LOG_INFO, "copying lua state from buffer to var\n");
     }
-    size_t offset = 0;
+    //read header
+    char headerBuffer[SAVE_STATE_HEADER_SIZE];
+    memcpy(&headerBuffer, data, SAVE_STATE_HEADER_SIZE);
+    bool legacy = true;
+    if (headerBuffer[0] == 'f' && headerBuffer[1] == '8') {
+        legacy = false;
+    }
+
+    if (legacy) {
+        return deserialize_legacy(data, size);
+    }
+
+    size_t offset = SAVE_STATE_HEADER_SIZE;
     size_t luaStateSize;
     memcpy(&luaStateSize, ((char*)data + offset),  sizeof(size_t));
     offset += sizeof(size_t);
@@ -433,15 +579,31 @@ EXPORT bool retro_unserialize(const void *data, size_t size)
         log_cb(RETRO_LOG_INFO, "copying pico 8 memory\n");
     }
 
-    memcpy(_memory->data, ((char*)data + offset), sizeof(PicoRam));
-    offset += sizeof(PicoRam);
+    size_t picoRamSize;
+    memcpy(&picoRamSize, ((char*)data + offset),  sizeof(size_t));
+    offset += sizeof(size_t);
+
+    if (picoRamSize != sizeof(PicoRam)) {
+        log_cb(RETRO_LOG_WARN, "mismatch in expected PicoRam size\n");
+    }
+
+    memcpy(_memory->data, ((char*)data + offset), picoRamSize);
+    offset += picoRamSize;
 
     if (log_cb) {
         log_cb(RETRO_LOG_INFO, "copying audio state\n");
     }
 
-    memcpy(_audio->getAudioState(), ((char*)data + offset), sizeof(audioState_t));
-    offset += sizeof(audioState_t);
+    size_t musicChannelSize;
+    memcpy(&musicChannelSize, ((char*)data + offset),  sizeof(size_t));
+    offset += sizeof(size_t);
+
+    if (musicChannelSize != sizeof(musicChannel)) {
+        log_cb(RETRO_LOG_WARN, "mismatch in expected music channel size\n");
+    }
+
+    memcpy(&_audio->getAudioState()->_musicChannel, ((char*)data + offset), musicChannelSize);
+    offset += musicChannelSize;
     
     return true;
 }
@@ -456,13 +618,25 @@ EXPORT void retro_cheat_set(unsigned index, bool enabled, const char *code)
 
 EXPORT bool retro_load_game(struct retro_game_info const *info)
 {
+    if (!info) {
+        _vm->QueueCartChange("__FAKE08-BIOS.p8");
+        return true;
+    }
+
     auto containingDir = getDirectory(info->path);
 
     if (containingDir.length() > 0) {
         setCartDirectory(containingDir);
     }
 
-    _vm->QueueCartChange(info->path);
+    if (info->size > 0) {
+        const unsigned char* data = reinterpret_cast<const unsigned char*>(info->data);
+        _vm->QueueCartChange(data, info->size);
+    }
+    else {
+        _vm->QueueCartChange(info->path);
+    }
+
     return true;
 }
 
