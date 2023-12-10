@@ -1,3 +1,7 @@
+# Polybius-08
+
+- Personal Thanks, jtothebell and others below!
+
 # FAKE-08
 - Website: https://github.com/jtothebell/fake-08
 - License: MIT
@@ -63,10 +67,6 @@
 # Miyoo Mini audio (ao.c, ao.h)
 - Website: https://www.dropbox.com/sh/hqcsr1h1d7f8nr3/AABtSOygIX_e4mio3rkLetWTa
 - License: Public Domain (per conversation with eggs on discord)
-
-# Ps4-p8
-- Website: https://github.com/voliva/ps4-p8
-- License: MIT
 
 # **License Text**
 

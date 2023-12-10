@@ -21,7 +21,6 @@ build/
 
 test/testrunner.a
 test/*.o
-test/*.wav
 test/lib/
 test/include/
 

@@ -11,9 +11,6 @@ const char * p8GlobalLuaFunctions = R"#(
 --Table Helpers
 ---------------------------------
 
---string indexing: https://lua-users.org/wiki/StringIndexing
-getmetatable('').__index = function(str,i) return string.sub(str,i,i) end
-
 --from zepto 8 bios.p8
 -- PicoLove functions did not return values added/deleted
 
@@ -39,19 +36,12 @@ end
 -- from returning #c in cases where the table is no longer an array. See
 -- the tables.p8 unit test cart for more details.
 --
--- count() takes an optional value as its second argument, if this is present
--- then count() will return the number of times the value is found in the table.
---
 -- We also try to mimic the PICO-8 error messages:
 --  count(nil) → attempt to get length of local 'c' (a nil value)
 --  count("x") → attempt to index local 'c' (a string value)
-function count(c,v)
+function count(c)
     local cnt,max = 0,#c
-    if v == nil then
-        for i=1,max do if (c[i] != nil) cnt+=1 end
-    else
-        for i=1,max do if (c[i] == v) cnt+=1 end
-    end
+    for i=1,max do if (c[i] != nil) cnt+=1 end
     return cnt
 end
 

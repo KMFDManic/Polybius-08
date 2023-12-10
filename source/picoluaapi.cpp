@@ -301,33 +301,26 @@ int print(lua_State *L){
         return 0;
     }
 
-    const char * charArray = "";
-    size_t len = 0;
+    const char * str = "";
     int newx = 0;
 
     //todo: handle other cases, maybe move this somewhere else
     //learned this from zepto8 https://github.com/samhocevar/zepto8/blob/27f83fe0626d4823fe2a33568d8310d8def84ae9/src/pico8/vm.cpp
     if (lua_isnil(L, 1)){
-        charArray = "[nil]";
-        len = 5;
+        str = "[nil]";
     }
     else if (lua_isstring(L, 1)){
-        charArray = lua_tolstring(L, 1, &len);
+        str = lua_tolstring(L, 1, nullptr);
     }
     else if (lua_isnumber(L, 1)){
-        charArray = lua_tolstring(L, 1, &len);
+        str = lua_tolstring(L, 1, nullptr);
     }
     else if (lua_isboolean(L, 1)){
-        int boolVal = lua_toboolean(L, 1);
-        charArray = boolVal ? "true" : "false";
-        len = boolVal ? 4 : 5;
+        str = lua_toboolean(L, 1) ? "true" : "false";
     }
     else if (lua_isfunction(L, 1)){
-        charArray = "[function]";
-        len = 10;
+        str = "[function]";
     }
-
-    std::string str = std::string(charArray, len);
 
     if (numArgs < 2) {
         newx = print(str);
@@ -824,60 +817,49 @@ int stat(lua_State *L) {
         break;
         //16-19 audio sfx currently playing
         case 16:
-        case 46:
             lua_pushnumber(L, _audioForLuaApi->getCurrentSfxId(0));
             return 1;
         break;
         case 17:
-        case 47:
             lua_pushnumber(L, _audioForLuaApi->getCurrentSfxId(1));
             return 1;
         break;
         case 18:
-        case 48:
             lua_pushnumber(L, _audioForLuaApi->getCurrentSfxId(2));
             return 1;
         break;
         case 19:
-        case 49:
             lua_pushnumber(L, _audioForLuaApi->getCurrentSfxId(3));
             return 1;
         break;
         //20-23 note idx of sfx currently playing
         case 20:
-        case 50:
             lua_pushnumber(L, _audioForLuaApi->getCurrentNoteNumber(0));
             return 1;
         break;
         case 21:
-        case 51:
             lua_pushnumber(L, _audioForLuaApi->getCurrentNoteNumber(1));
             return 1;
         break;
         case 22:
-        case 52:
             lua_pushnumber(L, _audioForLuaApi->getCurrentNoteNumber(2));
             return 1;
         break;
         case 23:
-        case 53:
             lua_pushnumber(L, _audioForLuaApi->getCurrentNoteNumber(3));
             return 1;
         break;
         //current music pattern
         case 24:
-        case 54:
             lua_pushnumber(L, _audioForLuaApi->getCurrentMusic());
             return 1;
         break;
         //current music count
         case 25:
-        case 55:
             lua_pushnumber(L, _audioForLuaApi->getMusicPatternCount());
             return 1;
         break;
         //current music tick count
-        case 56:
         case 26:
             lua_pushnumber(L, _audioForLuaApi->getMusicTickCount());
             return 1;

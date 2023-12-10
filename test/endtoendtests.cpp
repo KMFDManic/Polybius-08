@@ -395,7 +395,7 @@ TEST_CASE("Loading and running carts") {
                 "poke4", "memcpy", "memset", "max", "min", "mid", "flr", 
                 "ceil", "cos", "sin", "atan2", "rnd", "srand", "band",
                 "bor", "bxor", "bnot", "shl", "shr", "lshr", "rotl", "rotr",
-                "mapdraw", "extcmd", "next", "inext", "pairs", "ipairs"
+                "mapdraw", "extcmd"
             };
 
             string missing = "";
@@ -682,87 +682,6 @@ TEST_CASE("Loading and running carts") {
 
         vm->CloseCart();
     }
-    SUBCASE("p8scii control code memory access"){
-        vm->LoadCart("print_mem_poke.p8");
-
-        SUBCASE("No error reported"){
-            CHECK(vm->GetBiosError() == "");
-        }
-        SUBCASE("sceen matches screenshot"){
-            vm->UpdateAndDraw();
-
-            CHECK(verifyScreenshot(vm, host, "carts/screenshots/print_mem_poke_f01.png"));
-        }
-
-        vm->CloseCart();
-    }
-    SUBCASE("print scrolls screen"){
-        vm->LoadCart("print_scroll_test.p8");
-        
-        SUBCASE("sceen matches screenshot"){
-            vm->UpdateAndDraw();
-
-            CHECK(verifyScreenshot(vm, host, "carts/screenshots/print_scroll_test_f01.png"));
-        }
-
-        vm->CloseCart();
-    }
-    SUBCASE("custom font test"){
-        //font used from Pico World Race https://www.lexaloffle.com/bbs/?pid=106518
-        //https://creativecommons.org/licenses/by-nc-sa/4.0/
-        vm->LoadCart("ppwr-big-digit-test.p8");
-        
-        SUBCASE("sceen matches screenshot"){
-            vm->UpdateAndDraw();
-
-            CHECK(verifyScreenshot(vm, host, "carts/screenshots/ppwr-big-digit-test_f01.png"));
-        }
-
-        vm->CloseCart();
-    }
-    SUBCASE("split with no args test"){
-        vm->LoadCart("split_noargs_test.p8", false);
-
-        SUBCASE("No error reported"){
-            CHECK(vm->GetBiosError() == "");
-        }
-        SUBCASE("sceen matches screenshot"){
-            vm->UpdateAndDraw();
-
-            CHECK(verifyScreenshot(vm, host, "carts/screenshots/split_noargs_test_f01.png"));
-        }
-
-        vm->CloseCart();
-    }
-    SUBCASE("string bracket indexing and sub test"){
-        vm->LoadCart("str_index_sub_test.p8", false);
-
-        SUBCASE("No error reported"){
-            CHECK(vm->GetBiosError() == "");
-        }
-        SUBCASE("sceen matches screenshot"){
-            vm->UpdateAndDraw();
-
-            CHECK(verifyScreenshot(vm, host, "carts/screenshots/str_index_sub_test_f01.png"));
-        }
-
-        vm->CloseCart();
-    }
-    SUBCASE("count with val arg test"){
-        vm->LoadCart("count_val_test.p8", false);
-
-        SUBCASE("No error reported"){
-            CHECK(vm->GetBiosError() == "");
-        }
-        SUBCASE("sceen matches screenshot"){
-            vm->UpdateAndDraw();
-
-            CHECK(verifyScreenshot(vm, host, "carts/screenshots/count_val_test_f01.png"));
-        }
-
-        vm->CloseCart();
-    }
-
     
     delete vm;
     delete host;
